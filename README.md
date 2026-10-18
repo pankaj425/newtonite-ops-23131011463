@@ -117,6 +117,11 @@ The initial migration also installs a database trigger that makes
 `0002` adds a composite `(team_id, created_at)` index used by the team-scoped
 list query. `alembic check` reports no drift between the models and the schema.
 
+The seed script is **idempotent**: it inserts its six sample items only if an
+item with the same `(team, title)` does not already exist, so repeated deploys
+never duplicate demo data. Work-item titles are deliberately **not unique** —
+two items may share a title, which is expected and not a duplication bug.
+
 ---
 
 ## 5. Running the tests
@@ -185,6 +190,8 @@ Base URL: `http://localhost:8000`. Interactive docs at `/docs`.
 Results are ordered deterministically by `created_at DESC, id DESC`, and
 `page_size` is clamped to `1..100` on the server. Assignees must belong to the
 item's team and hold at least the **member** role (a viewer cannot be assigned).
+Comment bodies must be non-blank: an empty or whitespace-only body is rejected
+with `422` (`validation_error`).
 
 ### Error response format
 

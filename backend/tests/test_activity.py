@@ -60,6 +60,48 @@ def test_comment_is_recorded_and_does_not_bump_version(client, seeded, auth_head
     assert item["version"] == 1
 
 
+def test_empty_comment_is_rejected(client, seeded, auth_headers):
+    response = client.post(
+        f"/items/{seeded.item_assigned}/comments", json={"body": ""},
+        headers=auth_headers(seeded.tokens["member"]),
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+    assert event_types(
+        client, seeded, auth_headers(seeded.tokens["member"]), seeded.item_assigned
+    ) == []
+
+
+def test_whitespace_only_comment_is_rejected(client, seeded, auth_headers):
+    response = client.post(
+        f"/items/{seeded.item_assigned}/comments", json={"body": "   \n\t "},
+        headers=auth_headers(seeded.tokens["member"]),
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+
+
+def test_comment_persists_and_links_activity_event(client, seeded, auth_headers, db):
+    headers = auth_headers(seeded.tokens["member"])
+    created = client.post(
+        f"/items/{seeded.item_assigned}/comments",
+        json={"body": "Investigated the charge"},
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    comment = created.json()
+
+    listed = client.get(f"/items/{seeded.item_assigned}/comments", headers=headers).json()
+    assert [c["id"] for c in listed] == [comment["id"]]
+    assert listed[0]["body"] == "Investigated the charge"
+
+    events = client.get(f"/items/{seeded.item_assigned}/activity", headers=headers).json()
+    added = [e for e in events if e["event_type"] == "comment_added"]
+    assert len(added) == 1
+    assert added[0]["new_value"]["comment_id"] == comment["id"]
+    assert added[0]["actor_id"] == seeded.member_id
+
+
 def test_failed_transition_writes_no_activity(client, seeded, auth_headers, db):
     headers = auth_headers(seeded.tokens["lead"])
     first = client.post(

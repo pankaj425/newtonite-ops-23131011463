@@ -21,7 +21,9 @@ auditable history that can never silently diverge from the item.
 change writes a row in the **same transaction** as the item update; if either
 fails, both roll back. The table is append-only and this is enforced in the
 database by a `BEFORE UPDATE OR DELETE` trigger created in the initial
-migration, in addition to application discipline.
+migration, in addition to application discipline. Comment bodies are validated
+server-side (non-blank, at most 5000 characters) and the `comment_added` event is
+written in the same transaction as the comment row.
 
 **Trade-off.** Full event sourcing would give perfect reconstruction but adds
 significant complexity for little benefit here. The chosen approach keeps reads
