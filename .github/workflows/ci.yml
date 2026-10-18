@@ -41,7 +41,19 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Run tests
-        run: pytest -q
+        id: pytest
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pytest -q 2>&1 | tee pytest-output.txt
+      - name: Surface pytest output on failure
+        if: steps.pytest.outcome != 'success'
+        shell: bash
+        run: |
+          summary=$(tail -n 40 pytest-output.txt | tr '\n' '~' | sed 's/~/ | /g' | sed 's/%/%25/g; s/\r//g')
+          echo "::error title=pytest output::${summary:0:1800}"
+          exit 1
 
   frontend-build:
     name: Frontend build
