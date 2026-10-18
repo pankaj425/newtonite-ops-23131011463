@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     jwt_expires_minutes: int = 45
 
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
+    cors_origin_regex: str | None = None
 
     idempotency_ttl_hours: int = 24
 

@@ -90,6 +90,7 @@ Copy `backend/.env.example` to `backend/.env` and `frontend/.env.example` to
 | `JWT_ALGORITHM` | backend | Token algorithm (default `HS256`) |
 | `JWT_EXPIRES_MINUTES` | backend | Access-token lifetime (default 45) |
 | `CORS_ORIGINS` | backend | Comma-separated allowed frontend origins |
+| `CORS_ORIGIN_REGEX` | backend | Optional regex allowing matching origins (e.g. Vercel preview URLs) |
 | `IDEMPOTENCY_TTL_HOURS` | backend | Idempotency-key retention window (default 24) |
 | `VITE_API_BASE_URL` | frontend | Base URL of the backend API |
 

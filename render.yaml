@@ -46,3 +46,6 @@ services:
       #   https://newtonite-ops.vercel.app,http://localhost:5173
       - key: CORS_ORIGINS
         sync: false
+      # Allow every Vercel deployment origin (production and preview aliases).
+      - key: CORS_ORIGIN_REGEX
+        value: 'https://.*\.vercel\.app'
