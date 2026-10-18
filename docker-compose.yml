@@ -1,0 +1,56 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: newtonite
+      POSTGRES_PASSWORD: newtonite
+      POSTGRES_DB: newtonite
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U newtonite -d newtonite"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  db_test:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: newtonite
+      POSTGRES_PASSWORD: newtonite
+      POSTGRES_DB: newtonite_test
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U newtonite -d newtonite_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg2://newtonite:newtonite@db:5432/newtonite
+      JWT_SECRET: docker-dev-secret-change-me
+      CORS_ORIGINS: http://localhost:5173
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
