@@ -26,6 +26,19 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
 
+    @field_validator("database_url", "test_database_url", mode="before")
+    @classmethod
+    def _normalize_database_url(cls, value):
+        # Hosting providers (Render, Heroku, ...) hand out "postgres://" or
+        # "postgresql://" URLs. SQLAlchemy 2.x needs an explicit psycopg2 driver.
+        if not isinstance(value, str):
+            return value
+        if value.startswith("postgres://"):
+            return "postgresql+psycopg2://" + value[len("postgres://"):]
+        if value.startswith("postgresql://"):
+            return "postgresql+psycopg2://" + value[len("postgresql://"):]
+        return value
+
 
 @lru_cache
 def get_settings() -> Settings:

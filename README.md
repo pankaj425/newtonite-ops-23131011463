@@ -222,9 +222,11 @@ newtonite-ops-23131011463/
 │   ├── tests/
 │   ├── requirements.txt
 │   └── .env.example
-├── frontend/             # React + Vite app
+├── frontend/             # React + Vite app (vercel.json / netlify.toml)
 ├── scripts/db.ps1        # local PostgreSQL helper (Windows)
+├── .github/workflows/    # CI: pytest + frontend build
 ├── docker-compose.yml
+├── render.yaml           # Render Blueprint (API + managed PostgreSQL)
 ├── ENGINEERING_DECISIONS.md
 └── README.md
 ```
@@ -241,3 +243,47 @@ newtonite-ops-23131011463/
 - No mobile application.
 - Idempotency replay returns the stored response but does not re-run
   side effects, by design.
+
+---
+
+## 10. Deployment (live demo)
+
+The app is split into a hosted API + managed PostgreSQL (Render) and a static
+frontend (Vercel, or Netlify as an alternative).
+
+### Backend + database (Render)
+
+The repository ships a [Render Blueprint](https://render.com/docs/blueprint-spec)
+in `render.yaml` that provisions a free PostgreSQL 16 instance and the FastAPI
+web service.
+
+1. Push this repository to GitHub.
+2. In Render: **New +** → **Blueprint** → select the repository → **Apply**.
+3. Render builds `backend/`, runs `alembic upgrade head`, seeds the demo data,
+   and starts `uvicorn` on `$PORT`.
+4. Set the `CORS_ORIGINS` environment variable (Render prompts for it, because it
+   is marked `sync: false`) to your frontend origin, for example
+   `https://<your-app>.vercel.app,http://localhost:5173`.
+5. Note the API URL, for example `https://newtonite-ops-api.onrender.com`.
+
+> Free Render web services sleep after inactivity, so the first request after a
+> nap takes a few seconds. The free database plan expires after 90 days.
+
+### Frontend (Vercel)
+
+1. Import the repository in Vercel.
+2. Set **Root Directory** to `frontend`. The `vercel.json` SPA rewrite is
+   already included.
+3. Add the environment variable `VITE_API_BASE_URL` pointing at the Render API
+   URL, for example `https://newtonite-ops-api.onrender.com`.
+4. Deploy, then copy the deployed URL back into Render's `CORS_ORIGINS`.
+
+### Frontend (Netlify, alternative)
+
+`frontend/netlify.toml` has the equivalent build settings and SPA redirect. Set
+the base directory to `frontend`, add `VITE_API_BASE_URL`, and deploy.
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs the backend test suite against a PostgreSQL 16
+service container and builds the frontend on every push and pull request.
