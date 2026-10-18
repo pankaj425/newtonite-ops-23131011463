@@ -4,8 +4,8 @@
 # "New +" -> "Blueprint" and point it at the repository. Render reads this
 # file, provisions the database, and deploys the API.
 #
-# After the deploy, set CORS_ORIGINS (marked sync: false below) to the public
-# frontend origin (e.g. https://newtonite-ops.vercel.app).
+# After the deploy, CORS_ORIGINS is already set to the production frontend
+# origin; update it in the dashboard if your frontend origin changes.
 #
 # Docs: https://render.com/docs/blueprint-spec
 
@@ -42,10 +42,11 @@ services:
         value: "45"
       - key: IDEMPOTENCY_TTL_HOURS
         value: "24"
-      # Set this in the dashboard after the frontend is deployed, for example:
-      #   https://newtonite-ops.vercel.app,http://localhost:5173
+      # Explicit allow-list: the production frontend origin plus local dev.
+      # Credentialed requests must never match an unrestricted wildcard.
       - key: CORS_ORIGINS
-        sync: false
-      # Allow every Vercel deployment origin (production and preview aliases).
+        value: https://newtonite-ops-23131011463.vercel.app,http://localhost:5173
+      # Vercel preview deployments for THIS project only, e.g.
+      #   https://newtonite-ops-23131011463-<hash>-pankaj425s-projects.vercel.app
       - key: CORS_ORIGIN_REGEX
-        value: 'https://.*\.vercel\.app'
+        value: 'https://newtonite-ops-23131011463-[a-z0-9]+-pankaj425s-projects\.vercel\.app'

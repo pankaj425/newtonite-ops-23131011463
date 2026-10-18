@@ -102,8 +102,14 @@ def _version_conflict(db: Session, item_id: int):
 
 
 def _validate_assignee(db: Session, team_id: int, assignee_id: int) -> None:
-    if get_membership(db, assignee_id, team_id) is None:
+    membership = get_membership(db, assignee_id, team_id)
+    if membership is None:
         raise invalid("invalid_assignee", "The assignee is not a member of this team.")
+    if not role_at_least(membership.role, Role.member):
+        raise invalid(
+            "invalid_assignee",
+            "The assignee must have at least the member role in this team.",
+        )
 
 
 def _replay_or_conflict(record: IdempotencyKey, req_hash: str) -> tuple[int, dict[str, Any]]:

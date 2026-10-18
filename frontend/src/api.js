@@ -1,5 +1,6 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 const TOKEN_KEY = "newtonite_ops_token";
+const DEFAULT_TIMEOUT_MS = 60000;
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -23,18 +24,40 @@ export class ApiError extends Error {
 }
 
 export async function api(path, options = {}) {
-  const { method = "GET", body, idempotencyKey } = options;
+  const { method = "GET", body, idempotencyKey, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
   const headers = {};
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
 
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err && err.name === "AbortError") {
+      throw new ApiError(
+        0,
+        "timeout",
+        "The request timed out. The free Render API sleeps when idle and can take 30-60 seconds to wake up - please try again.",
+      );
+    }
+    throw new ApiError(
+      0,
+      "network_error",
+      "Could not reach the API. Check your connection and that the backend is running.",
+    );
+  } finally {
+    clearTimeout(timer);
+  }
 
   let data = null;
   const text = await response.text();

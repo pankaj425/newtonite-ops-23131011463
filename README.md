@@ -89,8 +89,8 @@ Copy `backend/.env.example` to `backend/.env` and `frontend/.env.example` to
 | `JWT_SECRET` | backend | Signing secret for access tokens |
 | `JWT_ALGORITHM` | backend | Token algorithm (default `HS256`) |
 | `JWT_EXPIRES_MINUTES` | backend | Access-token lifetime (default 45) |
-| `CORS_ORIGINS` | backend | Comma-separated allowed frontend origins |
-| `CORS_ORIGIN_REGEX` | backend | Optional regex allowing matching origins (e.g. Vercel preview URLs) |
+| `CORS_ORIGINS` | backend | Explicit comma-separated allowed frontend origins (never `*`) |
+| `CORS_ORIGIN_REGEX` | backend | Optional regex for Vercel **preview** origins of this project only |
 | `IDEMPOTENCY_TTL_HOURS` | backend | Idempotency-key retention window (default 24) |
 | `VITE_API_BASE_URL` | frontend | Base URL of the backend API |
 
@@ -113,7 +113,9 @@ alembic revision --autogenerate -m "describe change"
 ```
 
 The initial migration also installs a database trigger that makes
-`activity_events` append-only (updates and deletes are rejected).
+`activity_events` append-only (updates and deletes are rejected). Migration
+`0002` adds a composite `(team_id, created_at)` index used by the team-scoped
+list query. `alembic check` reports no drift between the models and the schema.
 
 ---
 
@@ -180,6 +182,10 @@ Base URL: `http://localhost:8000`. Interactive docs at `/docs`.
 | `GET` | `/items/{item_id}/comments` | List comments |
 | `POST` | `/items/{item_id}/comments` | Add a comment |
 
+Results are ordered deterministically by `created_at DESC, id DESC`, and
+`page_size` is clamped to `1..100` on the server. Assignees must belong to the
+item's team and hold at least the **member** role (a viewer cannot be assigned).
+
 ### Error response format
 
 All errors share one shape:
@@ -244,6 +250,49 @@ newtonite-ops-23131011463/
 - No mobile application.
 - Idempotency replay returns the stored response but does not re-run
   side effects, by design.
+- Assignees are restricted to team members with at least the member role.
+- Free-tier hosting: the Render API sleeps when idle, so the first request can
+  take 30-60 seconds. The frontend surfaces this as a clear timeout message.
+
+---
+
+## 11. Five-minute demo outline
+
+Run against the live URLs or locally. Every behaviour below is implemented and
+covered by tests (`backend/tests/`).
+
+1. **Login** as `member@newtonite.dev` / `Password123!`; show the team-scoped
+   dashboard (assigned to me, unassigned urgent, awaiting my approval).
+2. **Open a work item** and show details, comments, and the activity timeline.
+3. **Claim** the unassigned "Duplicate charge" item; it becomes assigned and an
+   `item_claimed` event appears. (Two users claiming at once: one gets `409`.)
+4. **Transition** `open → in_progress → awaiting_approval` as the member.
+5. **Comment** on the item and show the new timeline row.
+6. **Approve** as `lead@newtonite.dev` (`awaiting_approval → resolved`); the
+   lead cannot approve an item they are assigned to (self-approval is blocked).
+7. **Conflict:** open the same item in two tabs, edit in one, then save the
+   other — the stale save returns `409` with a "reload" message.
+8. **Isolation / permissions:** sign in as `viewer@newtonite.dev` (cannot
+   create, claim, comment, or edit) and as `other@newtonite.dev` (Payments items
+   return `404`).
+
+### Talking points
+
+- **Architecture:** Browser → React SPA (Vercel) → FastAPI (Render) → PostgreSQL.
+- **Concurrent claim:** a single conditional `UPDATE ... WHERE assignee_id IS
+  NULL`; `rowcount == 0` means someone else won → `409`.
+- **Stale edits:** every mutation carries `version` and is applied with a
+  `WHERE version = :expected` guard; zero rows updated → `409` with the current
+  item so the UI can reload.
+- **Duplicate creates:** `Idempotency-Key` + payload hash stored under a unique
+  constraint; same key + same body replays the original response, same key +
+  different body is `422`, concurrent duplicates cannot both insert.
+- **Team permissions:** membership is the boundary; missing membership returns
+  `404` so private items are not leaked; insufficient role returns `403`.
+- **Activity history:** the item change and its event are written in one
+  transaction (event rollback test included); a trigger blocks edits/deletes.
+- **At 10x:** add per-team rate limits, a read replica for list queries, and a
+  background worker plus transactional outbox for side effects.
 
 ---
 
@@ -262,9 +311,11 @@ web service.
 2. In Render: **New +** → **Blueprint** → select the repository → **Apply**.
 3. Render builds `backend/`, runs `alembic upgrade head`, seeds the demo data,
    and starts `uvicorn` on `$PORT`.
-4. Set the `CORS_ORIGINS` environment variable (Render prompts for it, because it
-   is marked `sync: false`) to your frontend origin, for example
-   `https://<your-app>.vercel.app,http://localhost:5173`.
+4. The Blueprint sets `CORS_ORIGINS` to the production frontend origin
+   (`https://newtonite-ops-23131011463.vercel.app`) plus `http://localhost:5173`,
+   and `CORS_ORIGIN_REGEX` to this project's Vercel preview URLs only. Edit
+   `CORS_ORIGINS` in the Render dashboard if your frontend origin differs.
+   Credentialed requests are never allowed against an unrestricted wildcard.
 5. Note the API URL, for example `https://newtonite-ops-api.onrender.com`.
 
 > Free Render web services sleep after inactivity, so the first request after a

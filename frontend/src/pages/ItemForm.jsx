@@ -79,6 +79,7 @@ export default function ItemForm({ mode }) {
 
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const canChangeAssignee = atLeast(roleForTeam(memberships, Number(form.team_id)), "lead");
+  const assignableMembers = members.filter((m) => atLeast(m.role, "member"));
 
   async function onSubmit(event) {
     event.preventDefault();
@@ -220,7 +221,7 @@ export default function ItemForm({ mode }) {
                 onChange={(e) => set("assignee_id", e.target.value)}
               >
                 <option value="">Unassigned</option>
-                {members.map((member) => (
+                {assignableMembers.map((member) => (
                   <option key={member.id} value={member.id}>
                     {member.name} ({member.role})
                   </option>

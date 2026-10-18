@@ -13,6 +13,7 @@ class WorkItem(Base):
     __tablename__ = "work_items"
     __table_args__ = (
         Index("ix_work_items_team_status", "team_id", "status"),
+        Index("ix_work_items_team_created", "team_id", "created_at"),
         Index("ix_work_items_assignee", "assignee_id"),
         Index("ix_work_items_priority", "priority"),
     )

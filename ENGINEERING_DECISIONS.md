@@ -109,7 +109,15 @@ consistently; a policy engine would centralise them but adds an abstraction the
 team does not need at this size. Team scoping is applied **before** any filter in
 `list_items`, so filters can never widen access.
 
-**Tests:** `tests/test_items_crud.py`, `tests/test_workflow.py`.
+**Assignee rule.** An item can only be assigned to a user who is a member of the
+item's team **and** holds at least the `member` role, checked server-side in
+`_validate_assignee`. A viewer cannot perform any item action, so assigning to a
+viewer would create a dead-end item; such a request returns `422`
+(`invalid_assignee`). The frontend assignee picker applies the same filter, but
+the server is the authority.
+
+**Tests:** `tests/test_items_crud.py`, `tests/test_workflow.py`,
+`tests/test_permissions.py`.
 
 ---
 
@@ -210,11 +218,45 @@ offsets. Keyset pagination would be more stable and scalable but is harder to
 combine with arbitrary filters and page numbers; for this dataset offset
 pagination is the right simplicity/stability balance.
 
+**Indexes.** The list query filters on `team_id` and orders by
+`created_at DESC, id DESC`, so migration `0002` adds a composite
+`ix_work_items_team_created (team_id, created_at)` index. The existing
+`(team_id, status)`, `(assignee_id)`, and `(priority)` indexes cover the other
+common filters. `alembic check` confirms the models and schema agree, and the
+migration applies cleanly to a fresh test database.
+
 **Tests:** `tests/test_search_pagination.py`.
 
 ---
 
-## 7. What we intentionally did not build
+## 7. Browser trust boundary: CORS
+
+**Context.** The SPA is served from Vercel and calls the API on Render with a
+bearer token, so the API must allow the real frontend origin without opening
+itself to arbitrary websites.
+
+**Options.**
+- `allow_origins=["*"]` — rejected: browsers refuse credentialed wildcard CORS,
+  and it would let any site call the API.
+- A broad regex such as `https://.*\.vercel\.app` — rejected: any Vercel-hosted
+  site would match.
+- An explicit allow-list plus a project-scoped preview pattern.
+
+**Choice.** `CORS_ORIGINS` is an explicit list (the production frontend origin
+and `http://localhost:5173`), and `CORS_ORIGIN_REGEX` matches only this
+project's Vercel preview hostnames
+(`https://newtonite-ops-23131011463-<hash>-pankaj425s-projects\.vercel\.app`).
+`allow_credentials=True`, `allow_methods=["*"]`, and `allow_headers=["*"]` are
+used because the allowed origins are already tightly scoped.
+
+**Trade-off.** Preview URLs change per deployment and must be added by pattern
+rather than by hand; the pattern is still project-specific. Backend secrets
+(`JWT_SECRET`, database URLs, Render keys) live only in backend environment
+variables and are never exposed to the browser or in `VITE_*` variables.
+
+---
+
+## 8. What we intentionally did not build
 
 - **No refresh tokens, SSO, or password reset.** Demo/login auth only, with
   short-lived access tokens; a real product needs a refresh flow.
