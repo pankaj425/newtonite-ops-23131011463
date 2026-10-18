@@ -58,6 +58,23 @@ To run everything in containers instead of locally:
 docker compose up --build
 ```
 
+### Alternative: local PostgreSQL without Docker (Windows)
+
+If Docker is unavailable, `scripts/db.ps1` creates and runs an isolated
+PostgreSQL cluster in `backend/.pgdata` on port `5433` (the same port the
+Compose test database uses), so `backend/.env.example` works unchanged.
+
+```powershell
+./scripts/db.ps1 start     # initdb on first run, start, create both databases
+./scripts/db.ps1 status    # is it accepting connections?
+./scripts/db.ps1 stop      # clean shutdown
+./scripts/db.ps1 reset     # delete the cluster and start over
+```
+
+Set the `PGBIN` environment variable to the folder containing `pg_ctl.exe` if
+the PostgreSQL binaries are not under `C:\Program Files\PostgreSQL`. After
+`start`, run `alembic upgrade head` and `python scripts/seed.py` as usual.
+
 ---
 
 ## 3. Environment variables
@@ -206,6 +223,7 @@ newtonite-ops-23131011463/
 │   ├── requirements.txt
 │   └── .env.example
 ├── frontend/             # React + Vite app
+├── scripts/db.ps1        # local PostgreSQL helper (Windows)
 ├── docker-compose.yml
 ├── ENGINEERING_DECISIONS.md
 └── README.md

@@ -34,3 +34,7 @@ Thumbs.db
 
 # Build artifacts
 *.tsbuildinfo
+
+# Local PostgreSQL data directory (scripts/db.ps1)
+.pgdata/
+
